@@ -1,6 +1,6 @@
 # CODESPACE_SETUP.md — Claude Code in GitHub Codespaces
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Applies to:** All EcosystemEcologyLab R projects  
 **Tested on:** fluxnet-annual-2026, March 2026  
 
@@ -97,13 +97,15 @@ curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-ge
 sudo npm install -g @anthropic-ai/claude-code
 ```
 
-### Step 3 — Fix the auth conflict
+### Step 3 — Set up authentication
 
-The rocker image sets `ANTHROPIC_API_KEY` which conflicts with the OAuth
-token. Unset it before starting Claude:
+The `CLAUDE_CODE_OAUTH_TOKEN` Codespace Secret is injected automatically into
+the environment. Copy it into `ANTHROPIC_API_KEY` so Claude Code detects it
+directly without triggering a browser OAuth flow:
 
 ```bash
 unset ANTHROPIC_API_KEY
+export ANTHROPIC_API_KEY=$CLAUDE_CODE_OAUTH_TOKEN
 ```
 
 ### Step 4 — Start Claude Code
@@ -116,41 +118,41 @@ claude
 
 | Prompt | Select |
 |---|---|
-| Select login method / API key detected | **2. No** |
+| Do you want to use this API key? | **1. Yes** |
 | Use recommended terminal settings? | **1. Yes** |
 | Trust this folder? | **1. Yes** |
 
-> **Why select No?** The `CLAUDE_CODE_OAUTH_TOKEN` is injected automatically
-> from Codespace Secrets. Selecting No tells Claude Code to use it instead of
-> the now-unset `ANTHROPIC_API_KEY`. Selecting Yes causes an auth conflict
-> and Claude Code will fail to run.
+> **Why this works:** Copying `CLAUDE_CODE_OAUTH_TOKEN` into `ANTHROPIC_API_KEY`
+> lets Claude Code authenticate using your Claude Pro subscription without
+> opening a browser. Any other approach (selecting options 1, 2, or 3 from the
+> login method menu) triggers a browser OAuth flow that fails in a Codespace
+> because the localhost callback cannot be reached.
 
 ### Step 6 — Verify
 
-You should see the Claude Code welcome screen. Type `hi` and press Enter.
-If Claude responds, setup is complete.
+You should see the Claude Code welcome screen showing your repository path.
+Type `hi` and press Enter. If Claude responds, setup is complete.
 
 ---
 
 ## Part 5: Quick Reference Card
 
 ```bash
-# Run these commands every time you open a new Codespace, in order:
-
 # 1. Install Node.js (~1 min)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs
 
 # 2. Install Claude Code (~30 sec)
 sudo npm install -g @anthropic-ai/claude-code
 
-# 3. Fix auth conflict
+# 3. Set up authentication
 unset ANTHROPIC_API_KEY
+export ANTHROPIC_API_KEY=$CLAUDE_CODE_OAUTH_TOKEN
 
 # 4. Start Claude Code
 claude
-# → Prompt 1: Select No (ignore detected API key)
-# → Prompt 2: Select Yes (recommended terminal settings)
-# → Prompt 3: Select Yes (trust this folder)
+# → Prompt 1: Select 1. Yes (use this API key)
+# → Prompt 2: Select 1. Yes (recommended terminal settings)
+# → Prompt 3: Select 1. Yes (trust this folder)
 ```
 
 ---
@@ -160,12 +162,12 @@ claude
 | Symptom | Cause | Fix |
 |---|---|---|
 | Recovery mode on Codespace open | Image tag does not exist (e.g. `:4.4.2`) | Delete Codespace, fix tag to `:4.4`, push, create fresh |
-| Browser auth loop | `CLAUDE_CODE_OAUTH_TOKEN` not granted to this repository | Add repo at `github.com/settings/codespaces`, delete and recreate |
-| Auth conflict warning | Both `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` set | `unset ANTHROPIC_API_KEY` then restart `claude` |
+| Browser auth loop | Any login method option triggers browser OAuth | `Ctrl+C`, run `unset ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY=$CLAUDE_CODE_OAUTH_TOKEN`, then `claude` and select Yes |
+| `CLAUDE_CODE_OAUTH_TOKEN` empty | Token not granted to this repository | Add repo at `github.com/settings/codespaces`, delete and recreate Codespace |
 | `claude: command not found` | Claude Code not installed | Run the Node.js and npm install steps |
 | `npm: command not found` | Node.js not installed | Run the curl Node.js install command first |
 | `npm EACCES permission denied` | Missing sudo | Use `sudo npm install -g @anthropic-ai/claude-code` |
-| Invalid API key error | Auth conflict not resolved | `Ctrl+C`, `unset ANTHROPIC_API_KEY`, restart `claude`, select No |
+| Invalid API key error | `CLAUDE_CODE_OAUTH_TOKEN` not set or empty | Check secret is granted to this repo at `github.com/settings/codespaces` |
 
 ---
 
