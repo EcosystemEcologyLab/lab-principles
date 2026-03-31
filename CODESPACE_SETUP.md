@@ -1,8 +1,8 @@
 # CODESPACE_SETUP.md — Claude Code in GitHub Codespaces
 
-**Version:** 1.1  
-**Applies to:** All EcosystemEcologyLab R projects  
-**Tested on:** fluxnet-annual-2026, March 2026  
+**Version:** 1.2
+**Applies to:** All EcosystemEcologyLab R projects
+**Tested on:** fluxnet-annual-2026, March 2026
 
 ---
 
@@ -18,10 +18,32 @@
 ### 1.1 The CLAUDE_CODE_OAUTH_TOKEN Secret
 
 Claude Code authenticates using an OAuth token stored as a personal GitHub
-Codespace Secret. This token is stored at the account level and does not need
-to be regenerated for each project.
+Codespace Secret. This token is stored at the account level.
 
-### 1.2 Granting Token Access to a New Repository
+### 1.2 Token Expiry and Regeneration
+
+The `CLAUDE_CODE_OAUTH_TOKEN` expires after approximately 90 days, or immediately
+if you run `claude /logout` on **any device**.
+
+> ⚠️ **Never run `claude /logout` in a Codespace during troubleshooting.**
+> It revokes the token globally and breaks authentication in all Codespaces immediately.
+
+**To regenerate the token when it expires or is revoked:**
+
+1. On your local Mac terminal (not in a Codespace):
+```bash
+claude setup-token
+```
+2. Copy the printed token — it starts with `sk-ant-oat01-` and has no spaces
+3. Go to `https://github.com/settings/codespaces`
+4. Find `CLAUDE_CODE_OAUTH_TOKEN` → click **Update** → paste the new token → save
+5. Delete any existing Codespace and create a fresh one
+
+**Signs the token needs regenerating:**
+- `CLAUDE_CODE_OAUTH_TOKEN` is present in the environment but Claude Code returns "Invalid API key"
+- Authentication worked previously but fails after running `claude /logout`
+
+### 1.3 Granting Token Access to a New Repository
 
 Every time you create a new repository where you want to use Claude Code,
 do this **before** opening a Codespace:
@@ -51,6 +73,12 @@ before the Codespace is opened. Use the template at
 - Do not add the Python devcontainer feature — Python is managed internally
   by reticulate
 - Do not add `RENV_PATHS_CACHE` — the path does not exist and breaks renv
+- Do not add the `sshd` feature — it interferes with Codespace Secret injection,
+  preventing `CLAUDE_CODE_OAUTH_TOKEN` from being available in the environment
+
+> ⚠️ **Any change to devcontainer.json requires deleting and recreating the
+> Codespace to take effect. Test changes carefully — a broken devcontainer
+> cannot be fixed by rebuilding, only by deleting and recreating.**
 
 To create this file on your local Mac:
 
@@ -85,36 +113,80 @@ git push
 These steps are required every time you create a new Codespace.
 They are not persisted between Codespace deletions.
 
-### Step 1 — Install Node.js (~1 minute)
+### Step 0 — Verify secret injection (do this first)
+
+Before installing anything, confirm the OAuth token was injected:
+
+```bash
+echo "OAUTH token present: $([ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && echo YES || echo NO)"
+```
+
+**If YES** — proceed to Step 1.
+**If NO** — stop. Check that `CLAUDE_CODE_OAUTH_TOKEN` is granted to this
+repository at `https://github.com/settings/codespaces`. Delete and recreate
+the Codespace. Do not proceed until this prints YES.
+
+### Step 1 — Fix renv lock if needed
+
+Run this first — it is harmless if the lock does not exist:
+
+```bash
+rm -f ~/.cache/R/renv/library/fluxnet-annual-2026-0f379c84/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu/00LOCK-renv
+```
+
+Confirm Node.js is not yet installed:
+```bash
+node --version 2>/dev/null || echo "not installed"
+```
+
+### Step 2 — Install Node.js (~1 minute)
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs
 ```
 
-### Step 2 — Install Claude Code (~30 seconds)
+Confirm:
+```bash
+node --version
+```
+
+### Step 3 — Install Claude Code (~30 seconds)
 
 ```bash
 sudo npm install -g @anthropic-ai/claude-code
 ```
 
-### Step 3 — Set up authentication
-
-The `CLAUDE_CODE_OAUTH_TOKEN` Codespace Secret is injected automatically into
-the environment. Copy it into `ANTHROPIC_API_KEY` so Claude Code detects it
-directly without triggering a browser OAuth flow:
-
+Confirm:
 ```bash
-unset ANTHROPIC_API_KEY
-export ANTHROPIC_API_KEY=$CLAUDE_CODE_OAUTH_TOKEN
+claude --version
 ```
 
-### Step 4 — Start Claude Code
+### Step 4 — Set up authentication
+
+Save the token, unset both variables, then set only `ANTHROPIC_API_KEY`:
+
+```bash
+SAVED_TOKEN=$CLAUDE_CODE_OAUTH_TOKEN
+unset CLAUDE_CODE_OAUTH_TOKEN
+unset ANTHROPIC_API_KEY
+export ANTHROPIC_API_KEY=$SAVED_TOKEN
+```
+
+Confirm the token is set correctly:
+```bash
+echo $ANTHROPIC_API_KEY | head -c 20
+```
+
+It should print `sk-ant-oat01-` followed by more characters. If it prints
+nothing, the token was not injected — go back to Step 0.
+
+### Step 5 — Start Claude Code
 
 ```bash
 claude
 ```
 
-### Step 5 — Navigate the prompts
+### Step 6 — Navigate the prompts
 
 | Prompt | Select |
 |---|---|
@@ -122,15 +194,8 @@ claude
 | Use recommended terminal settings? | **1. Yes** |
 | Trust this folder? | **1. Yes** |
 
-> **Why this works:** Copying `CLAUDE_CODE_OAUTH_TOKEN` into `ANTHROPIC_API_KEY`
-> lets Claude Code authenticate using your Claude Pro subscription without
-> opening a browser. Any other approach (selecting options 1, 2, or 3 from the
-> login method menu) triggers a browser OAuth flow that fails in a Codespace
-> because the localhost callback cannot be reached.
+### Step 7 — Verify
 
-### Step 6 — Verify
-
-You should see the Claude Code welcome screen showing your repository path.
 Type `hi` and press Enter. If Claude responds, setup is complete.
 
 ---
@@ -138,17 +203,25 @@ Type `hi` and press Enter. If Claude responds, setup is complete.
 ## Part 5: Quick Reference Card
 
 ```bash
-# 1. Install Node.js (~1 min)
+# 0. Verify secret injection — must print YES before proceeding
+echo "OAUTH token present: $([ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && echo YES || echo NO)"
+
+# 1. Fix renv lock (harmless if not needed)
+rm -f ~/.cache/R/renv/library/fluxnet-annual-2026-0f379c84/linux-ubuntu-noble/R-4.4/x86_64-pc-linux-gnu/00LOCK-renv
+
+# 2. Install Node.js (~1 min)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs
 
-# 2. Install Claude Code (~30 sec)
+# 3. Install Claude Code (~30 sec)
 sudo npm install -g @anthropic-ai/claude-code
 
-# 3. Set up authentication
+# 4. Set up authentication
+SAVED_TOKEN=$CLAUDE_CODE_OAUTH_TOKEN
+unset CLAUDE_CODE_OAUTH_TOKEN
 unset ANTHROPIC_API_KEY
-export ANTHROPIC_API_KEY=$CLAUDE_CODE_OAUTH_TOKEN
+export ANTHROPIC_API_KEY=$SAVED_TOKEN
 
-# 4. Start Claude Code
+# 5. Start Claude Code
 claude
 # → Prompt 1: Select 1. Yes (use this API key)
 # → Prompt 2: Select 1. Yes (recommended terminal settings)
@@ -162,19 +235,32 @@ claude
 | Symptom | Cause | Fix |
 |---|---|---|
 | Recovery mode on Codespace open | Image tag does not exist (e.g. `:4.4.2`) | Delete Codespace, fix tag to `:4.4`, push, create fresh |
-| Browser auth loop | Any login method option triggers browser OAuth | `Ctrl+C`, run `unset ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY=$CLAUDE_CODE_OAUTH_TOKEN`, then `claude` and select Yes |
-| `CLAUDE_CODE_OAUTH_TOKEN` empty | Token not granted to this repository | Add repo at `github.com/settings/codespaces`, delete and recreate Codespace |
-| `claude: command not found` | Claude Code not installed | Run the Node.js and npm install steps |
-| `npm: command not found` | Node.js not installed | Run the curl Node.js install command first |
+| `CLAUDE_CODE_OAUTH_TOKEN` empty (Step 0 prints NO) | Token not granted to this repository | Add repo at `github.com/settings/codespaces`, delete and recreate |
+| `CLAUDE_CODE_OAUTH_TOKEN` present but "Invalid API key" | Token expired or revoked by `claude /logout` | Regenerate token on local Mac with `claude setup-token`, update GitHub secret, recreate Codespace |
+| Auth conflict warning (both token and API key set) | Both variables present simultaneously | Use the Step 4 sequence which saves, unsets both, then sets only `ANTHROPIC_API_KEY` |
+| `claude: command not found` | Claude Code not installed | Run Steps 2 and 3 |
+| `npm: command not found` | Node.js not installed | Run Step 2 first |
 | `npm EACCES permission denied` | Missing sudo | Use `sudo npm install -g @anthropic-ai/claude-code` |
-| Invalid API key error | `CLAUDE_CODE_OAUTH_TOKEN` not set or empty | Check secret is granted to this repo at `github.com/settings/codespaces` |
+| renv lock error on Codespace open | Two R processes collided during startup | Run the `rm -f` command in Step 1 then `Rscript -e "renv::restore()"` |
+| sshd feature breaks secret injection | sshd interferes with Codespace Secret injection | Remove sshd from devcontainer.json, commit, delete and recreate Codespace |
 
 ---
 
-## Part 7: Before Creating a New Codespace — Checklist
+## Part 7: Important Warnings
+
+> ⚠️ **Never run `claude /logout` in a Codespace.** It revokes the token globally.
+
+> ⚠️ **Any devcontainer.json change requires a full delete and recreate** — not just a rebuild. Test changes conservatively. When in doubt, ask whether the change could affect secret injection or the R environment before making it.
+
+> ⚠️ **Do not add devcontainer features without verifying they are compatible with the rocker image and Codespace Secret injection.** The `sshd` feature, Python feature, and `RENV_PATHS_CACHE` are all known to cause problems.
+
+---
+
+## Part 8: Before Creating a New Codespace — Checklist
 
 - [ ] `CLAUDE_CODE_OAUTH_TOKEN` granted to the new repository
-- [ ] `.devcontainer/devcontainer.json` committed using `tidyverse:4.4`
+- [ ] Token is not expired (last regenerated within 90 days, no `claude /logout` run since)
+- [ ] `.devcontainer/devcontainer.json` committed using `tidyverse:4.4` with no problematic features
 - [ ] `CLAUDE.md` committed to the repository root
 - [ ] `SCIENCE_PRINCIPLES.md` (and relevant specialised files) committed
 - [ ] Any required Codespace Secrets added to the repository
