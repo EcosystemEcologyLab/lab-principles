@@ -63,7 +63,14 @@ The following directories are gitignored and must never be committed:
 The following directories are git-tracked:
 [LIST TRACKED DIRECTORIES e.g. data/snapshots/, data/overrides/]
 
-### 4. [ADD PROJECT-SPECIFIC HARD RULES AS NEEDED]
+### 4. Git operations
+Never run git add, git commit, git push, git merge, or any other git write
+operation without explicit human approval in the current session. Always
+show the proposed commit message and list of changed files and wait for
+confirmation before proceeding.
+
+
+### 5. [ADD PROJECT-SPECIFIC HARD RULES AS NEEDED]
 
 ---
 
