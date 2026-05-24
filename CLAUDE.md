@@ -89,4 +89,5 @@ candidates for promotion to universal standards.
 - ~/Research/R/fluxnet-annual-2026
 - ~/Research/R/IPCC_NatGHG
 - ~/Research/R/Fsoil_aridlands
+- ~/Research/R/FluxCourseForecast
 - Student project repositories (locations to be added)
